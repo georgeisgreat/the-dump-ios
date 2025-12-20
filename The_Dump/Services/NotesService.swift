@@ -53,26 +53,54 @@ class NotesService {
     }
     
     // Fetch the list of notes (with pagination & filtering)
-    func fetchNotes(limit: Int = 30, cursorTime: String? = nil, category: String? = nil) async throws -> NoteListResponse {
+    func fetchNotes(
+        limit: Int = 30,
+        cursorTime: String? = nil,
+        cursorId: String? = nil,
+        categoryName: String? = nil,
+        mimeType: String? = nil,
+        subCatName: String? = nil,
+        startTime: String? = nil,
+        endTime: String? = nil,
+        q: String? = nil,
+        noteType: String? = nil
+    ) async throws -> NoteListResponse {
         // Build query parameters
-        var components = URLComponents(string: "\(baseURL)/api/pull_notes")!
+        guard var components = URLComponents(string: "\(baseURL)/api/pull_notes") else {
+            throw APIError.invalidURL
+        }
+
         var queryItems = [URLQueryItem(name: "limit", value: "\(limit)")]
-        
-        if let cursorTime = cursorTime {
-            queryItems.append(URLQueryItem(name: "cursor_time", value: cursorTime))
+
+        func addQueryItem(_ name: String, _ value: String?) {
+            let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let trimmed, !trimmed.isEmpty else { return }
+            queryItems.append(URLQueryItem(name: name, value: trimmed))
         }
-        if let category = category {
-            queryItems.append(URLQueryItem(name: "category_name", value: category))
-        }
+
+        addQueryItem("cursor_time", cursorTime)
+        addQueryItem("cursor_id", cursorId)
+        addQueryItem("category_name", categoryName)
+        addQueryItem("mime_type", mimeType)
+        addQueryItem("sub_cat_name", subCatName)
+        addQueryItem("start_time", startTime)
+        addQueryItem("end_time", endTime)
+        addQueryItem("q", q)
+        addQueryItem("note_type", noteType)
+
         components.queryItems = queryItems
         
+        guard let url = components.url else { throw APIError.invalidURL }
+
         // Create request manually since we used URLComponents
         let token = try await AuthService.shared.getIDToken()
-        guard let url = components.url else { throw APIError.invalidURL }
+        
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
         
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -82,7 +110,8 @@ class NotesService {
             }
             
             guard (200...299).contains(httpResponse.statusCode) else {
-                throw APIError.httpError(statusCode: httpResponse.statusCode, message: "Failed to fetch notes")
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
             }
             
             return try JSONDecoder().decode(NoteListResponse.self, from: data)
