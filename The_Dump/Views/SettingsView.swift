@@ -60,6 +60,13 @@ struct SettingsView: View {
                         .listRowBackground(Theme.darkGray)
                     }
                     
+                    // Debug Section
+                    Section {
+                         NavigationLink("Debug API", destination: DebugNotesView())
+                             .foregroundColor(Theme.accent)
+                             .listRowBackground(Theme.darkGray)
+                    }
+                    
                     // App info
                     Section {
                         HStack {

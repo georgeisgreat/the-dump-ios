@@ -1,0 +1,188 @@
+# Note API Documentation
+
+**Base URL**: `https://api.yoursite.com` (or `http://localhost:8080` for local dev)
+
+## Authentication
+This API uses Firebase Authentication. All endpoints require a valid user session.
+
+**For Mobile / API Clients:**
+Include the Firebase ID Token in the Authorization header.
+`Authorization: Bearer <FIREBASE_ID_TOKEN>`
+
+**For Web Browsers:**
+The API automatically respects the `firebase_session` cookie.
+
+---
+
+## 1. Get Note Counts (Sidebar Data)
+Returns aggregated counts for all categories, types, media, and date ranges. Used to populate the sidebar navigation numbers.
+
+- **Endpoint**: `GET /api/note_counts`
+- **Auth Required**: Yes
+
+### Response Example
+```json
+{
+  "categories": {
+    "Work": 12,
+    "Personal": 5,
+    "Ideas": 8
+  },
+  "sub_categories": {
+    "Project Alpha": 4,
+    "Groceries": 2
+  },
+  "note_types": {
+    "Meeting Notes": 10,
+    "To-Do List": 5
+  },
+  "mime_types": {
+    "text": 150,
+    "image": 24,
+    "voice": 12,
+    "document": 5
+  },
+  "date_groups": {
+    "Today": 3,
+    "Yesterday": 5,
+    "This Week": 12,
+    "This Month": 45,
+    "This Year": 150,
+    "All Time": 200
+  }
+}
+```
+
+---
+
+## 2. Pull Note Previews (List View)
+Fetches a paginated list of note summaries (metadata + short preview text). Used for the main scrolling feed.
+
+- **Endpoint**: `GET /api/pull_notes`
+- **Auth Required**: Yes
+
+### Query Parameters
+| Param | Type | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `limit` | `int` | Number of notes to fetch (Max 100) | 30 |
+| `cursor_time` | `string` | Timestamp of the last note seen (for pagination) | `null` |
+| `cursor_id` | `string` | ID of the last note seen (for pagination) | `null` |
+| `category_name`| `string` | Filter by exact Category Name | `null` |
+| `note_type` | `string` | Filter by exact Note Type | `null` |
+| `mime_type` | `string` | Filter by exact file type (e.g. `heic`, `txt`) | `null` |
+| `q` | `string` | Search query string (searches content) | `null` |
+
+### Response Example
+```json
+{
+  "notes": [
+    {
+      "organized_note_id": "uuid-string",
+      "preview": "First 300 chars of note...",
+      "note_content_modified": "2025-01-15T10:30:00Z",
+      "category_name": "Work",
+      "note_type": "Meeting Notes",
+      "mime_type": "txt",
+      "sub_cat_names": ["Project A"]
+    }
+  ],
+  "next_cursor_time": "2025-01-15T10:30:00Z",
+  "next_cursor_id": "uuid-string",
+  "has_more": true
+}
+```
+
+---
+
+## 3. Pull Full Note Content (Detail View)
+Fetches the complete markdown content and full metadata for specific notes. Can be used for a single note or to batch-fetch multiple.
+
+- **Endpoint**: `POST /api/pull_full_notes`
+- **Auth Required**: Yes
+- **Content-Type**: `application/json`
+
+### Request Body
+```json
+{
+  "note_ids": [
+    "uuid-of-note-1",
+    "uuid-of-note-2"
+  ]
+}
+```
+
+### Response Example
+```json
+{
+  "notes": [
+    {
+      "organized_note_id": "uuid-of-note-1",
+      "note_content": "# Full Markdown Content\n\nThis is the entire text...",
+      "note_content_modified": "2025-01-15T10:30:00Z",
+      "category_name": "Work",
+      "sub_cat_names": ["Project A", "Q1 Goals"],
+      "tags": ["urgent", "todo"],
+      "mime_type": "txt",
+      "note_type": "Meeting Notes"
+    }
+  ]
+}
+```
+
+---
+
+## Code Examples
+
+### 1. cURL (Universal)
+```bash
+curl -X POST https://api.yoursite.com/api/pull_full_notes \
+  -H "Authorization: Bearer <YOUR_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{ "note_ids": ["uuid-1", "uuid-2"] }'
+```
+
+### 2. iOS (Swift)
+```swift
+func fetchFullNotes(noteIDs: [String], token: String) {
+    let url = URL(string: "https://api.yoursite.com/api/pull_full_notes")!
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    
+    let body: [String: Any] = ["note_ids": noteIDs]
+    request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+    
+    URLSession.shared.dataTask(with: request) { data, response, error in
+        guard let data = data, error == nil else {
+            print("Error: \(error?.localizedDescription ?? "Unknown")")
+            return
+        }
+        
+        if let json = try? JSONSerialization.jsonObject(with: data) {
+            print("Response: \(json)")
+        }
+    }.resume()
+}
+```
+
+### 3. Python (Requests)
+```python
+import requests
+
+def fetch_full_notes(note_ids, token):
+    url = "https://api.yoursite.com/api/pull_full_notes"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    payload = { "note_ids": note_ids }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Error {response.status_code}")
+        return None
+```
+
