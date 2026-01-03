@@ -94,10 +94,13 @@ private struct NoteListRowView: View {
                 .foregroundColor(Theme.textPrimary)
                 .lineLimit(1)
             
-            Text(derivedSnippet(from: note.preview))
-                .font(.system(size: Theme.fontSizeSM))
-                .foregroundColor(Theme.textSecondary)
-                .lineLimit(2)
+            let snippet = derivedSnippet(from: note.preview)
+            if !snippet.isEmpty {
+                Text(snippet)
+                    .font(.system(size: Theme.fontSizeSM))
+                    .foregroundColor(Theme.textSecondary)
+                    .lineLimit(2)
+            }
             
             HStack(spacing: 8) {
                 if let modified = formattedDate(note.note_content_modified) {
@@ -127,7 +130,20 @@ private struct NoteListRowView: View {
     
     private func derivedSnippet(from preview: String) -> String {
         let trimmed = preview.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? " " : trimmed
+        guard !trimmed.isEmpty else { return "" }
+        
+        let title = derivedTitle(from: trimmed)
+        // If we couldn't derive a meaningful title, don't try to remove anything.
+        guard title != "Untitled" else { return trimmed }
+        
+        // Remove the title only if it is actually a prefix of the preview.
+        if trimmed.hasPrefix(title) {
+            let remainder = trimmed.dropFirst(title.count)
+            return remainder.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            // Safety fallback: avoid deleting content if title derivation doesn't match the prefix.
+            return trimmed
+        }
     }
     
     private func formattedDate(_ iso: String) -> String? {
