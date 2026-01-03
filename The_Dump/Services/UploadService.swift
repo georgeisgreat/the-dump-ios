@@ -17,29 +17,19 @@ class UploadService {
         userEmail: String,
         idToken: String
     ) async throws -> UploadResponse {
-        // Convert to JPEG
         guard let jpegData = image.jpegData(compressionQuality: 0.85) else {
             throw APIError.encodingFailed
         }
-        
-        // Generate filename
+
         let filename = generateFilename(kind: "photo", extension: "jpg")
-        
-        // Get signed URL
-        let response = try await requestSignedURL(
+
+        return try await uploadData(
+            data: jpegData,
             filename: filename,
             contentType: "image/jpeg",
+            isQuickNote: false,
             idToken: idToken
         )
-        
-        // Upload to GCS
-        try await uploadToGCS(
-            data: jpegData,
-            uploadURL: response.uploadUrl,
-            contentType: "image/jpeg"
-        )
-        
-        return response
     }
     
     // MARK: - Audio Upload
@@ -49,33 +39,23 @@ class UploadService {
         userEmail: String,
         idToken: String
     ) async throws -> UploadResponse {
-        // Read audio data
         let audioData = try Data(contentsOf: fileURL)
-        
-        // Check size (100MB limit)
+
+        // Enforce 100MB size limit
         let maxSize = 100 * 1024 * 1024
         guard audioData.count <= maxSize else {
             throw APIError.badRequest(message: "File exceeds 100MB limit")
         }
-        
-        // Generate filename
+
         let filename = generateFilename(kind: "voice", extension: "m4a")
-        
-        // Get signed URL
-        let response = try await requestSignedURL(
+
+        return try await uploadData(
+            data: audioData,
             filename: filename,
             contentType: "audio/m4a",
+            isQuickNote: false,
             idToken: idToken
         )
-        
-        // Upload to GCS
-        try await uploadToGCS(
-            data: audioData,
-            uploadURL: response.uploadUrl,
-            contentType: "audio/m4a"
-        )
-        
-        return response
     }
     
     // MARK: - Private Methods
@@ -84,25 +64,52 @@ class UploadService {
         let uuid = UUID().uuidString.lowercased()
         return "\(kind)_\(uuid).\(ext)"
     }
-    
+
+    /// Generic upload method: requests signed URL then uploads data to GCS
+    private func uploadData(
+        data: Data,
+        filename: String,
+        contentType: String,
+        isQuickNote: Bool = false,
+        idToken: String
+    ) async throws -> UploadResponse {
+        // Get signed URL from backend
+        let response = try await requestSignedURL(
+            filename: filename,
+            contentType: contentType,
+            isQuickNote: isQuickNote,
+            idToken: idToken
+        )
+
+        // Upload to GCS
+        try await uploadToGCS(
+            data: data,
+            uploadURL: response.uploadUrl,
+            contentType: contentType
+        )
+
+        return response
+    }
+
     private func requestSignedURL(
         filename: String,
         contentType: String,
+        isQuickNote: Bool = false,
         idToken: String
     ) async throws -> UploadResponse {
         guard let url = URL(string: backendBaseURL + uploadEndpoint) else {
             throw APIError.invalidURL
         }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
-        
+
         let body: [String: Any] = [
             "filename": filename,
             "contentType": contentType,
-            "isQuickNote": false
+            "isQuickNote": isQuickNote
         ]
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
