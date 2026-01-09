@@ -1,5 +1,7 @@
 import SwiftUI
 
+//main folders screen shows sections (categories, date groups, file types). Each row displays a name and count. 
+
 struct BrowseView: View {
     @StateObject private var viewModel = BrowseViewModel()
     @State private var searchText: String = ""
@@ -25,7 +27,19 @@ struct BrowseView: View {
                                 }
                                 .listRowBackground(Theme.darkGray)
                             }
-                            
+
+                            Section {
+                                NavigationLink {
+                                    NotesListView(title: "Recent", filter: .recent(limit: 10))
+                                } label: {
+                                    BrowseFolderRowView(title: "Recent", count: 10)
+                                }
+                                .listRowBackground(Theme.darkGray)
+                            } header: {
+                                Text("Recent")
+                                    .foregroundColor(Theme.textSecondary)
+                            }
+
                             Section {
                                 ForEach(viewModel.categoryRows) { row in
                                     NavigationLink {

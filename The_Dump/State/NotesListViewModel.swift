@@ -8,6 +8,7 @@ final class NotesListViewModel: ObservableObject {
         case category(name: String)
         case mimeType(String)
         case dateGroup(name: String, startTime: String, endTime: String)
+        case recent(limit: Int)
     }
     
     @Published private(set) var notes: [NotePreview] = []
@@ -53,6 +54,9 @@ final class NotesListViewModel: ObservableObject {
         guard hasMore else { return }
         guard !isLoadingInitial else { return }
         guard !isLoadingMore else { return }
+
+        // Recent filter shows a fixed number of notes, no pagination
+        if case .recent = filter { return }
         
         // Trigger pagination when the user reaches the end of the current list.
         let isLast = notes.last?.id == currentItem.id
@@ -123,6 +127,14 @@ final class NotesListViewModel: ObservableObject {
                 startTime: start,
                 endTime: end,
                 tz: TimeZone.current.identifier,
+                q: q
+            )
+        case .recent(let recentLimit):
+            // For recent, we only fetch the specified limit (pagination disabled in loadMoreIfNeeded)
+            return try await NotesService.shared.fetchNotes(
+                limit: recentLimit,
+                cursorTime: nil,
+                cursorId: nil,
                 q: q
             )
         }

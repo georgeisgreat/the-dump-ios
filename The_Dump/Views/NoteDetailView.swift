@@ -1,6 +1,8 @@
 import SwiftUI
 import Combine
 
+//Shows the full content of a single note
+
 struct NoteDetailView: View {
     private let noteID: String
     @StateObject private var viewModel: NoteDetailViewModel
