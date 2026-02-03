@@ -7,6 +7,9 @@ struct NoteDetailView: View {
     private let noteID: String
     @StateObject private var viewModel: NoteDetailViewModel
     @State private var showMetadataSheet = false
+    @State private var isEditing = false
+    @State private var draftTitle = ""
+    @State private var draftContent = ""
 
     init(noteID: String) {
         self.noteID = noteID
@@ -42,14 +45,68 @@ struct NoteDetailView: View {
                             // Compact metadata header
                             NoteMetadataHeader(note: note)
 
-                            // Main content
-                            Text(note.note_content)
-                                .font(.system(size: Theme.fontSizeMD))
-                                .foregroundColor(Theme.textPrimary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
+                            if isEditing {
+                                VStack(alignment: .leading, spacing: Theme.spacingSM) {
+                                    Text("Title")
+                                        .font(.system(size: Theme.fontSizeSM, weight: .semibold))
+                                        .foregroundColor(Theme.textSecondary)
+
+                                    TextField("Optional title", text: $draftTitle)
+                                        .textInputAutocapitalization(.sentences)
+                                        .disableAutocorrection(false)
+                                        .padding(Theme.spacingSM)
+                                        .background(Theme.darkGray)
+                                        .cornerRadius(Theme.cornerRadiusSM)
+
+                                    Text("Content")
+                                        .font(.system(size: Theme.fontSizeSM, weight: .semibold))
+                                        .foregroundColor(Theme.textSecondary)
+
+                                    TextEditor(text: $draftContent)
+                                        .font(.system(size: Theme.fontSizeMD))
+                                        .foregroundColor(Theme.textPrimary)
+                                        .frame(minHeight: 220)
+                                        .padding(Theme.spacingSM)
+                                        .background(Theme.darkGray)
+                                        .cornerRadius(Theme.cornerRadiusSM)
+                                }
+                            } else {
+                                // Main content
+                                Text(note.note_content)
+                                    .font(.system(size: Theme.fontSizeMD))
+                                    .foregroundColor(Theme.textPrimary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                            }
+
+                            if isEditing {
+                                HStack(spacing: Theme.spacingSM) {
+                                    Button("Cancel") {
+                                        cancelEdits()
+                                    }
+                                    .buttonStyle(SecondaryButtonStyle())
+
+                                    Button("Save") {
+                                        Task {
+                                            let saved = await viewModel.saveEdits(
+                                                title: draftTitle.isEmpty ? nil : draftTitle,
+                                                content: draftContent
+                                            )
+                                            if saved {
+                                                isEditing = false
+                                            }
+                                        }
+                                    }
+                                    .buttonStyle(PrimaryButtonStyle(isEnabled: canSave))
+                                    .disabled(!canSave || viewModel.isSaving)
+                                }
+                                .padding(.top, Theme.spacingSM)
+                            }
                         }
                         .padding(Theme.spacingLG)
+                    }
+                    .onAppear {
+                        hydrateDraft(from: note)
                     }
                 } else {
                     Text("No content.")
@@ -72,6 +129,15 @@ struct NoteDetailView: View {
                     }
                 }
             }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                if viewModel.note != nil {
+                    Button(isEditing ? "Done" : "Edit") {
+                        toggleEditMode()
+                    }
+                    .foregroundColor(Theme.accent)
+                }
+            }
         }
         .sheet(isPresented: $showMetadataSheet) {
             if let note = viewModel.note {
@@ -82,6 +148,47 @@ struct NoteDetailView: View {
             await viewModel.loadIfNeeded()
         }
         .navigationTitle(navTitle)
+    }
+
+    private var canSave: Bool {
+        guard let note = viewModel.note else { return false }
+        let trimmedTitle = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedContent = draftContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        let originalTitle = (note.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let originalContent = note.note_content.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let contentChanged = trimmedContent != originalContent
+        let titleChanged = trimmedTitle != originalTitle
+        let hasChanges = contentChanged || titleChanged
+
+        let contentSizeOK = trimmedContent.utf8.count <= 500 * 1024
+        return hasChanges && contentSizeOK
+    }
+
+    private func hydrateDraft(from note: NoteDetail) {
+        if !isEditing {
+            draftTitle = note.title ?? ""
+            draftContent = note.note_content
+        }
+    }
+
+    private func toggleEditMode() {
+        guard let note = viewModel.note else { return }
+        if isEditing {
+            cancelEdits()
+        } else {
+            draftTitle = note.title ?? ""
+            draftContent = note.note_content
+            isEditing = true
+        }
+    }
+
+    private func cancelEdits() {
+        if let note = viewModel.note {
+            draftTitle = note.title ?? ""
+            draftContent = note.note_content
+        }
+        isEditing = false
     }
 
     private func displayTitle(for note: NoteDetail) -> String {
