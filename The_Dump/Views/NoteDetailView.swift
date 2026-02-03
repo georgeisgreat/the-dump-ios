@@ -51,12 +51,18 @@ struct NoteDetailView: View {
                                         .font(.system(size: Theme.fontSizeSM, weight: .semibold))
                                         .foregroundColor(Theme.textSecondary)
 
-                                    TextField("Optional title", text: $draftTitle)
+                                    TextField("Title", text: $draftTitle)
                                         .textInputAutocapitalization(.sentences)
                                         .disableAutocorrection(false)
                                         .padding(Theme.spacingSM)
                                         .background(Theme.darkGray)
                                         .cornerRadius(Theme.cornerRadiusSM)
+
+                                    if draftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        Text("Title is required.")
+                                            .font(.system(size: Theme.fontSizeXS))
+                                            .foregroundColor(Theme.accent)
+                                    }
 
                                     Text("Content")
                                         .font(.system(size: Theme.fontSizeSM, weight: .semibold))
@@ -88,8 +94,9 @@ struct NoteDetailView: View {
 
                                     Button("Save") {
                                         Task {
+                                            let trimmedTitle = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
                                             let saved = await viewModel.saveEdits(
-                                                title: draftTitle.isEmpty ? nil : draftTitle,
+                                                title: trimmedTitle,
                                                 content: draftContent
                                             )
                                             if saved {
@@ -162,7 +169,8 @@ struct NoteDetailView: View {
         let hasChanges = contentChanged || titleChanged
 
         let contentSizeOK = trimmedContent.utf8.count <= 500 * 1024
-        return hasChanges && contentSizeOK
+        let titleValid = !trimmedTitle.isEmpty
+        return hasChanges && contentSizeOK && titleValid
     }
 
     private func hydrateDraft(from note: NoteDetail) {
