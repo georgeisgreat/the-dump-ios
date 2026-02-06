@@ -4,6 +4,8 @@ struct OnboardingCategoriesView: View {
     @ObservedObject var viewModel: OnboardingViewModel
     let onBack: () -> Void
     let onContinue: () -> Void
+    var isSettingsMode: Bool = false
+    var existingCategories: [(name: String, count: Int)] = []
 
     @FocusState private var isInputFocused: Bool
 
@@ -27,17 +29,19 @@ struct OnboardingCategoriesView: View {
                 VStack(alignment: .leading, spacing: Theme.spacingLG) {
                     // Header
                     VStack(alignment: .leading, spacing: Theme.spacingSM) {
-                        Text("Choose 3-10 categories you'd like your notes organized into.")
+                        Text(isSettingsMode ? "Add new categories" : "Choose 3-10 categories you'd like your notes organized into.")
                             .font(.system(size: Theme.fontSizeXL, weight: .bold))
                             .foregroundColor(Theme.textPrimary)
 
-                        Text("Think of these as folders. Each note will be assigned to one category.")
+                        Text(isSettingsMode ? "Add categories to organize more of your notes." : "Think of these as folders. Each note will be assigned to one category.")
                             .font(.system(size: Theme.fontSizeSM))
                             .foregroundColor(Theme.textSecondary)
 
-                        Text("You can add sub-categories within each category later.")
-                            .font(.system(size: Theme.fontSizeXS))
-                            .foregroundColor(Theme.textSecondary)
+                        if !isSettingsMode {
+                            Text("You can add sub-categories within each category later.")
+                                .font(.system(size: Theme.fontSizeXS))
+                                .foregroundColor(Theme.textSecondary)
+                        }
                     }
 
                     // Text Input
@@ -82,10 +86,25 @@ struct OnboardingCategoriesView: View {
                         }
                     }
 
-                    // Your Categories
+                    // Existing Categories (Settings Mode Only)
+                    if isSettingsMode && !existingCategories.isEmpty {
+                        VStack(alignment: .leading, spacing: Theme.spacingSM) {
+                            Text("Existing Categories")
+                                .font(.system(size: Theme.fontSizeMD, weight: .semibold))
+                                .foregroundColor(Theme.textPrimary)
+
+                            FlowLayout(spacing: Theme.spacingSM) {
+                                ForEach(existingCategories, id: \.name) { category in
+                                    ExistingCategoryChip(name: category.name, count: category.count)
+                                }
+                            }
+                        }
+                    }
+
+                    // Your Categories (New)
                     VStack(alignment: .leading, spacing: Theme.spacingSM) {
                         HStack {
-                            Text("Your Categories")
+                            Text(isSettingsMode ? "New Categories" : "Your Categories")
                                 .font(.system(size: Theme.fontSizeMD, weight: .semibold))
                                 .foregroundColor(Theme.textPrimary)
 
@@ -97,7 +116,7 @@ struct OnboardingCategoriesView: View {
                         }
 
                         if viewModel.categories.isEmpty {
-                            Text("Your categories will appear here")
+                            Text(isSettingsMode ? "New categories will appear here" : "Your categories will appear here")
                                 .font(.system(size: Theme.fontSizeSM))
                                 .foregroundColor(Theme.textSecondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -203,6 +222,33 @@ private struct RemovableTagChip: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Theme.mediumGray)
+        .cornerRadius(16)
+    }
+}
+
+// MARK: - Existing Category Chip (Read-only)
+
+private struct ExistingCategoryChip: View {
+    let name: String
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(name)
+                .font(.system(size: Theme.fontSizeSM))
+                .foregroundColor(Theme.textSecondary)
+
+            Text("\(count)")
+                .font(.system(size: Theme.fontSizeXS))
+                .foregroundColor(Theme.textSecondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Theme.mediumGray.opacity(0.5))
+                .cornerRadius(8)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Theme.darkGray)
         .cornerRadius(16)
     }
 }

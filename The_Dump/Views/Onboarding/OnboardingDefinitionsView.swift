@@ -5,6 +5,7 @@ struct OnboardingDefinitionsView: View {
     @ObservedObject var viewModel: OnboardingViewModel
     let onBack: () -> Void
     let onComplete: () -> Void
+    var isSettingsMode: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,7 +27,7 @@ struct OnboardingDefinitionsView: View {
                 VStack(alignment: .leading, spacing: Theme.spacingLG) {
                     // Header
                     VStack(alignment: .leading, spacing: Theme.spacingSM) {
-                        Text("Help us understand your categories")
+                        Text(isSettingsMode ? "Define your new categories" : "Help us understand your categories")
                             .font(.system(size: Theme.fontSizeXL, weight: .bold))
                             .foregroundColor(Theme.textPrimary)
 
@@ -66,7 +67,7 @@ struct OnboardingDefinitionsView: View {
                             .progressViewStyle(CircularProgressViewStyle(tint: Theme.textPrimary))
                             .frame(maxWidth: .infinity)
                     } else {
-                        Text("Save & start dumping")
+                        Text(isSettingsMode ? "Save categories" : "Save & start dumping")
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -86,7 +87,12 @@ struct OnboardingDefinitionsView: View {
 
     private func saveAndContinue() {
         Task {
-            let success = await viewModel.submitCustomCategories(appState: appState)
+            let success: Bool
+            if isSettingsMode {
+                success = await viewModel.submitNewCategories()
+            } else {
+                success = await viewModel.submitCustomCategories(appState: appState)
+            }
             if success {
                 onComplete()
             }
@@ -95,7 +101,12 @@ struct OnboardingDefinitionsView: View {
 
     private func skipAndContinue() {
         Task {
-            let success = await viewModel.skipDefinitions(appState: appState)
+            let success: Bool
+            if isSettingsMode {
+                success = await viewModel.skipDefinitionsFromSettings()
+            } else {
+                success = await viewModel.skipDefinitions(appState: appState)
+            }
             if success {
                 onComplete()
             }
