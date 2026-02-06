@@ -312,7 +312,7 @@ class NotesService {
     }
 
     // Update user categories
-    func updateCategories(_ categories: [Category]) async throws -> Int {
+    func updateCategories(_ categories: [Category]) async throws -> UpdateCategoriesResponse {
         guard !categories.isEmpty else {
             throw APIError.badRequest(message: "At least one category is required")
         }
@@ -337,10 +337,20 @@ class NotesService {
         do {
 #if DEBUG
             debugLogRequest(request, label: "categories_update")
+            if let bodyData = request.httpBody,
+               let bodyString = String(data: bodyData, encoding: .utf8) {
+                print("[NotesService][categories_update] Request body: \(bodyString)")
+            }
 #endif
             let (data, response) = try await URLSession.shared.data(for: request)
 #if DEBUG
             debugLogResponse(data: data, response: response, label: "categories_update")
+            // Log the full response body for debugging
+            if let httpResponse = response as? HTTPURLResponse,
+               (200...299).contains(httpResponse.statusCode),
+               let bodyString = String(data: data, encoding: .utf8) {
+                print("[NotesService][categories_update] Success body: \(bodyString)")
+            }
 #endif
 
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -353,10 +363,19 @@ class NotesService {
             }
 
             let decoded = try JSONDecoder().decode(UpdateCategoriesResponse.self, from: data)
-            return decoded.updatedCount
+#if DEBUG
+            print("[NotesService][categories_update] Decoded: status=\(decoded.status) count=\(decoded.updatedCount) categories=\(decoded.categories.count)")
+            for cat in decoded.categories {
+                print("[NotesService][categories_update]   - \(cat.name) (id=\(cat.categoryId), added=\(cat.dateAdded))")
+            }
+#endif
+            return decoded
         } catch let error as APIError {
             throw error
         } catch let error as DecodingError {
+#if DEBUG
+            print("[NotesService][categories_update] Decoding error: \(error)")
+#endif
             throw APIError.decodingFailed(underlying: error)
         } catch {
             throw APIError.networkError(underlying: error)

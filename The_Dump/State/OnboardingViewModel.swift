@@ -140,12 +140,21 @@ final class OnboardingViewModel: ObservableObject {
         let apiCategories = onboardingCategories.map { $0.toAPICategory() }
 
         do {
-            _ = try await NotesService.shared.updateCategories(apiCategories)
+            let response = try await NotesService.shared.updateCategories(apiCategories)
+#if DEBUG
+            print("[OnboardingViewModel] Categories saved: \(response.updatedCount) categories")
+            for cat in response.categories {
+                print("[OnboardingViewModel]   - \(cat.name) (id=\(cat.categoryId))")
+            }
+#endif
             appState.markOnboardingComplete()
             isSubmitting = false
             return true
         } catch {
             errorMessage = error.localizedDescription
+#if DEBUG
+            print("[OnboardingViewModel] Failed to save categories: \(error)")
+#endif
             isSubmitting = false
             return false
         }

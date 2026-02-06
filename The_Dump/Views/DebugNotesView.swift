@@ -3,16 +3,14 @@ import SwiftUI
 struct DebugNotesView: View {
     @State private var log: String = "Ready to test...\nUsing AuthService Token."
     @State private var isBusy = false
-    
-    // We no longer need the hardcoded debugToken
-    // private let debugToken = "..." 
-    
+    @State private var categoryName: String = "Test Category"
+
     var body: some View {
         VStack(spacing: 20) {
             Text("API Connectivity Test")
                 .font(.headline)
                 .foregroundColor(.white)
-            
+
             HStack {
                 Button("1. Get Counts") {
                     runTest {
@@ -20,7 +18,7 @@ struct DebugNotesView: View {
                     }
                 }
                 .buttonStyle(DebugButtonStyle())
-                
+
                 Button("2. Get List") {
                     runTest {
                         return try await rawFetchList()
@@ -28,13 +26,32 @@ struct DebugNotesView: View {
                 }
                 .buttonStyle(DebugButtonStyle())
             }
-            
+
             Button("3. Get Details (Real ID)") {
                 runTest {
                     return try await rawFetchDetails()
                 }
             }
             .buttonStyle(DebugButtonStyle())
+
+            Divider()
+                .background(Color.white.opacity(0.3))
+
+            Text("Categories API Test")
+                .font(.headline)
+                .foregroundColor(.white)
+
+            TextField("Category name", text: $categoryName)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .padding(.horizontal)
+
+            Button("4. Update Category") {
+                runTest {
+                    return try await rawUpdateCategory()
+                }
+            }
+            .buttonStyle(DebugButtonStyle())
+            .disabled(categoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             
             ScrollView {
                 Text(log)
@@ -107,16 +124,72 @@ struct DebugNotesView: View {
     private func rawFetchDetails() async throws -> String {
          guard let url = URL(string: "\(baseURL)/api/pull_full_notes") else { return "Invalid URL" }
          let token = try await getFreshToken()
-         
+
          var request = URLRequest(url: url)
          request.httpMethod = "POST"
          request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
          request.setValue("application/json", forHTTPHeaderField: "Content-Type")
          // Updated with the specific ID provided by user
          request.httpBody = try JSONSerialization.data(withJSONObject: ["note_ids": ["0182ddfc-1279-4d74-977b-c04b577600ae"]])
-         
+
          let (data, response) = try await URLSession.shared.data(for: request)
          return try handleResponse(data: data, response: response)
+    }
+
+    private func rawUpdateCategory() async throws -> String {
+        guard let url = URL(string: "\(baseURL)/api/categories/update") else { return "Invalid URL" }
+        let token = try await getFreshToken()
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let trimmedName = categoryName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body: [String: Any] = [
+            "categories": [
+                [
+                    "name": trimmedName,
+                    "definition": "Debug test category",
+                    "keywords": ["debug", "test"],
+                    "source": "user"
+                ]
+            ]
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        return try handleCategoryResponse(data: data, response: response)
+    }
+
+    private func handleCategoryResponse(data: Data, response: URLResponse) throws -> String {
+        guard let http = response as? HTTPURLResponse else { return "No Response" }
+
+        let body = String(data: data, encoding: .utf8) ?? "(no body)"
+
+        if http.statusCode == 200 {
+            // Try to parse and display nicely
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let status = json["status"] as? String,
+               let count = json["updated_count"] as? Int,
+               let categories = json["categories"] as? [[String: Any]] {
+                var result = "✅ Status 200\n"
+                result += "Status: \(status)\n"
+                result += "Updated count: \(count)\n\n"
+                result += "Saved categories:\n"
+                for cat in categories {
+                    let id = cat["category_id"] ?? "?"
+                    let name = cat["name"] ?? "?"
+                    let dateAdded = cat["date_added"] ?? "?"
+                    result += "  • \(name) (id=\(id))\n"
+                    result += "    Added: \(dateAdded)\n"
+                }
+                return result
+            }
+            return "✅ Status 200:\n\(body)"
+        } else {
+            return "❌ HTTP Error \(http.statusCode):\n\(body)"
+        }
     }
 
     private func handleResponse(data: Data, response: URLResponse) throws -> String {

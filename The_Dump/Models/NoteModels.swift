@@ -117,12 +117,32 @@ struct UpdateCategoriesRequest: Codable {
     let categories: [Category]
 }
 
+/// Represents a category as returned by the server after save (includes database IDs and timestamps)
+struct CategoryResponse: Codable {
+    let categoryId: Int
+    let name: String
+    let definition: String
+    let keywords: [String]
+    let source: String
+    let dateAdded: String
+    let lastModifiedDate: String
+
+    enum CodingKeys: String, CodingKey {
+        case categoryId = "category_id"
+        case name, definition, keywords, source
+        case dateAdded = "date_added"
+        case lastModifiedDate = "last_modified_date"
+    }
+}
+
 struct UpdateCategoriesResponse: Codable {
     let status: String
     let updatedCount: Int
+    let categories: [CategoryResponse]
 
     enum CodingKeys: String, CodingKey {
         case status
         case updatedCount = "updated_count"
+        case categories
     }
 }
