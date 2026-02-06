@@ -4,6 +4,9 @@ import Combine
 @MainActor
 final class OnboardingViewModel: ObservableObject {
 
+    // MARK: - Mode
+    let isSettingsMode: Bool
+
     // MARK: - Screen 1 State
     @Published var selectedPresetId: String?
 
@@ -11,10 +14,23 @@ final class OnboardingViewModel: ObservableObject {
     @Published var categoryInput: String = ""
     @Published var categories: [OnboardingCategory] = []
     @Published var activeDomains: Set<String> = []
+    @Published private(set) var existingCategoryNames: Set<String> = []
 
     // MARK: - Loading/Error State
     @Published private(set) var isSubmitting: Bool = false
     @Published var errorMessage: String?
+
+    // MARK: - Init
+
+    init(isSettingsMode: Bool = false) {
+        self.isSettingsMode = isSettingsMode
+    }
+
+    // MARK: - Settings Mode Support
+
+    func loadExistingCategories(_ names: [String]) {
+        existingCategoryNames = Set(names.map { $0.lowercased() })
+    }
 
     // MARK: - Computed Properties
 
@@ -23,10 +39,20 @@ final class OnboardingViewModel: ObservableObject {
     }
 
     var isCategoryCountValid: Bool {
-        categoryCount >= 3 && categoryCount <= 10
+        if isSettingsMode {
+            return categoryCount >= 1
+        }
+        return categoryCount >= 3 && categoryCount <= 10
     }
 
     var categoriesNeededMessage: String {
+        if isSettingsMode {
+            if categoryCount == 0 {
+                return "Add at least 1 category to continue"
+            } else {
+                return "Add more categories or continue"
+            }
+        }
         if categoryCount < 3 {
             let needed = 3 - categoryCount
             return "Add \(needed) more \(needed == 1 ? "category" : "categories") to continue"
@@ -44,12 +70,13 @@ final class OnboardingViewModel: ObservableObject {
     var availableSuggestions: [String] {
         guard !activeDomains.isEmpty else { return [] }
 
-        let existingNames = Set(categories.map { $0.name.lowercased() })
+        let newCategoryNames = Set(categories.map { $0.name.lowercased() })
+        let allExistingNames = newCategoryNames.union(existingCategoryNames)
 
         return DomainSuggestions.allDomains
             .filter { activeDomains.contains($0.id) }
             .flatMap { $0.suggestions }
-            .filter { !existingNames.contains($0.lowercased()) }
+            .filter { !allExistingNames.contains($0.lowercased()) }
     }
 
     // MARK: - Screen 1 Actions
@@ -74,6 +101,7 @@ final class OnboardingViewModel: ObservableObject {
         guard !trimmed.isEmpty else { return }
         guard trimmed.count <= 30 else { return }
         guard !categories.contains(where: { $0.name.lowercased() == trimmed.lowercased() }) else { return }
+        guard !existingCategoryNames.contains(trimmed.lowercased()) else { return }
         guard categories.count < 10 else { return }
 
         categories.append(OnboardingCategory(name: trimmed))
@@ -132,7 +160,7 @@ final class OnboardingViewModel: ObservableObject {
 
     // MARK: - Private
 
-    private func submitCategories(_ onboardingCategories: [OnboardingCategory], appState: AppState) async -> Bool {
+    private func submitCategories(_ onboardingCategories: [OnboardingCategory], appState: AppState?) async -> Bool {
         guard !isSubmitting else { return false }
         isSubmitting = true
         errorMessage = nil
@@ -147,7 +175,9 @@ final class OnboardingViewModel: ObservableObject {
                 print("[OnboardingViewModel]   - \(cat.name) (id=\(cat.categoryId))")
             }
 #endif
-            appState.markOnboardingComplete()
+            if !isSettingsMode {
+                appState?.markOnboardingComplete()
+            }
             isSubmitting = false
             return true
         } catch {
@@ -158,5 +188,18 @@ final class OnboardingViewModel: ObservableObject {
             isSubmitting = false
             return false
         }
+    }
+
+    // MARK: - Settings Mode Submit
+
+    func submitNewCategories() async -> Bool {
+        return await submitCategories(categories, appState: nil)
+    }
+
+    func skipDefinitionsFromSettings() async -> Bool {
+        let strippedCategories = categories.map {
+            OnboardingCategory(name: $0.name, definition: "", keywords: "")
+        }
+        return await submitCategories(strippedCategories, appState: nil)
     }
 }

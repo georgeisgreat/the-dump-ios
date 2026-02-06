@@ -27,6 +27,16 @@ struct SettingsView: View {
                         Text("Account")
                             .foregroundColor(Theme.textSecondary)
                     }
+
+                    // Categories section
+                    Section {
+                        NavigationLink("Manage Categories", destination: CategoryManagementView())
+                            .foregroundColor(Theme.accent)
+                            .listRowBackground(Theme.darkGray)
+                    } header: {
+                        Text("Categories")
+                            .foregroundColor(Theme.textSecondary)
+                    }
                     
                     // Session section
                     Section {
