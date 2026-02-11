@@ -36,9 +36,12 @@ final class NotesListViewModel: ObservableObject {
         self.filter = filter
     }
 
-    /// Load available subcategories from the notes in the current category
+    /// Load available subcategories from the notes in the current category.
+    /// Skips rebuilding when a sub-category filter is active, because the
+    /// filtered results only contain that one sub-category and would wipe the list.
     func loadSubCategories() async {
         guard case .category = filter else { return }
+        guard selectedSubCategory == nil else { return }
 
         // Collect unique subcategories from all loaded notes
         var subCats = Set<String>()
