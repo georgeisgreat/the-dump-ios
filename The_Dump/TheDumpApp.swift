@@ -13,12 +13,18 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct TheDumpApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var appState = AppState()
-    
+
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(appState)
                 .preferredColorScheme(.dark)
+                .task {
+                    // Start listening for StoreKit transaction updates (renewals, revocations)
+                    StoreKitService.shared.listenForTransactions { transaction in
+                        await appState.subscriptionViewModel.handleTransactionUpdate(transaction)
+                    }
+                }
         }
     }
 }

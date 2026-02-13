@@ -1,0 +1,211 @@
+# iOS StoreKit Integration Notes
+
+Reference document for the iOS client developer integrating Apple In-App Purchase
+subscriptions with the MindMerge backend.
+
+---
+
+## 1. Notification Types to Handle Client-Side
+
+The backend handles the critical subscription lifecycle notifications
+(SUBSCRIBED, DID_RENEW, EXPIRED, DID_CHANGE_RENEWAL_STATUS, REVOKE, REFUND)
+via the `POST /api/apple-notifications` webhook. The following App Store Server
+Notification v2 types should be handled **in the iOS app**, not on the backend:
+
+| Notification Type | What It Means | iOS App Action |
+|---|---|---|
+| `DID_FAIL_TO_RENEW` | Billing retry has started. The user still has access, but their payment method failed. | Show a banner or alert asking the user to update their payment method in Settings > Apple ID > Subscriptions. |
+| `GRACE_PERIOD_EXPIRED` | The billing grace period ended and the subscription is now truly lapsed. | Show an upgrade / re-subscribe prompt. The backend will have already downgraded the user when it received the `EXPIRED` notification. |
+| `OFFER_REDEEMED` | The user redeemed a promotional or offer code. | Update the UI to reflect the active offer (e.g. show offer name, adjusted price, or offer expiration). |
+| `RENEWAL_EXTENDED` | Apple extended the renewal date (e.g. service-outage compensation). | Update the displayed subscription expiration date to match the new `renewalDate` from the transaction. |
+| `CONSUMPTION_REQUEST` | Apple is requesting consumption data to evaluate a refund request. | Respond via the App Store Server API's `Send Consumption Information` endpoint. Provide usage data (e.g. number of notes processed) so Apple can make an informed refund decision. |
+
+> **Tip:** You can listen for these using `Transaction.updates` and
+> `Status.updates` in StoreKit 2, or register for App Store Server
+> Notifications v2 and forward them to your iOS notification handling logic.
+
+---
+
+## 2. Product ID Validation
+
+Before sending a signed transaction to the backend's `POST /api/verify-ios-purchase`,
+the iOS app **must** validate that the `productId` from the StoreKit transaction
+matches your specific MindMerge subscription product ID.
+
+```swift
+// Example: validate product ID before calling the backend
+let expectedProductId = "com.mindmerge.subscription.monthly" // your real product ID
+
+guard transaction.productID == expectedProductId else {
+    // Do not send to backend -- wrong product
+    logger.error("Unexpected productId: \(transaction.productID)")
+    return
+}
+
+// Safe to send to POST /api/verify-ios-purchase
+let signedTransaction = transaction.jwsRepresentation
+```
+
+This prevents accidentally upgrading a user based on a transaction for a
+different app or product.
+
+---
+
+## 3. Check Backend Tier Before Showing Purchase UI
+
+The iOS app **MUST** call `GET /api/usage-status` (with Bearer token auth) to
+check the user's current subscription tier before presenting the StoreKit
+purchase sheet. This prevents duplicate subscriptions across payment providers
+(Stripe web + Apple IAP).
+
+```swift
+// GET /api/usage-status response shape:
+// {
+//   "subscription_tier": "free" | "trial" | "paid" | "pre_approved",
+//   "tokens_used": 1234,
+//   "monthly_token_limit": 500000,
+//   "tokens_remaining": 498766,
+//   "usage_percentage": 0.2,
+//   "is_blocked": false,
+//   "trial_ends_at": "2026-02-27T00:00:00+00:00",
+//   "resets_at": "2026-03-01T00:00:00+00:00"
+// }
+```
+
+**Auth:** Include the Firebase ID token as a Bearer token:
+```
+Authorization: Bearer <firebase_id_token>
+```
+
+**Logic:**
+- If `subscription_tier` is `"paid"` or `"pre_approved"`, do **not** show the
+  purchase UI. The user already has an active subscription (possibly via Stripe
+  or manual approval).
+- If `subscription_tier` is `"free"` or `"trial"`, it is safe to present the
+  StoreKit purchase sheet.
+
+---
+
+## 4. Backend Config TODOs (for backend developer)
+
+The following items need to be set up on the backend before the iOS purchase
+verification route will work in production. Current config lives in
+`config.py` (lines 37-43).
+
+### 4a. ~~Add APPLE_APP_ID~~ DONE
+
+`APPLE_APP_ID` has been added to `config.py` (line 44). Still need to set the
+actual value in environment variables:
+- Get from **App Store Connect > Your App > General > App Information > Apple ID**
+  (the numeric ID, not the bundle ID)
+
+### 4b. Apple Root Certificates
+
+Download the following certificates from
+https://www.apple.com/certificateauthority/ :
+
+- `AppleRootCA-G3.cer` (required)
+- `AppleRootCA-G2.cer` (recommended for safety)
+
+Store them in a `certs/` directory at the project root:
+
+```
+mindmerge_frontend/
+  certs/
+    AppleRootCA-G3.cer
+    AppleRootCA-G2.cer
+```
+
+The `SignedDataVerifier` needs these passed as a list of certificate file
+contents (raw bytes):
+
+```python
+root_certs = []
+for cert_file in ['certs/AppleRootCA-G3.cer', 'certs/AppleRootCA-G2.cer']:
+    with open(cert_file, 'rb') as f:
+        root_certs.append(f.read())
+```
+
+### 4c. APPLE_PRIVATE_KEY Setup
+
+The `.p8` private key from App Store Connect is needed to authenticate with
+Apple's App Store Server API.
+
+**For Cloud Run (production):**
+
+1. Store the key in Google Secret Manager:
+   ```bash
+   gcloud secrets create apple-private-key --data-file=AuthKey_XXXX.p8
+   ```
+2. Mount it as an environment variable in the Cloud Run service config so that
+   `os.getenv('APPLE_PRIVATE_KEY')` returns the key contents at runtime.
+
+**For local development:**
+
+Either base64-encode the key and decode at runtime, or export the key contents
+directly:
+
+```bash
+export APPLE_PRIVATE_KEY=$(cat AuthKey_XXXX.p8)
+```
+
+---
+
+## 5. REVOKE vs REFUND Distinction
+
+The backend currently handles `REVOKE` (Family Sharing removal) and `REFUND`
+(Apple refunded the user) identically -- both downgrade the user to the free
+tier with `TOKEN_LIMIT_FREE` (10,000 tokens/month).
+
+However, the iOS app should **track and display these differently** to the user:
+
+| Event | Meaning | Suggested iOS UI |
+|---|---|---|
+| `REVOKE` | The subscription was removed because the family organizer stopped sharing, or the user left the family group. | "Your shared subscription has ended. Subscribe on your own to continue with full access." |
+| `REFUND` | Apple refunded the user's purchase (user requested it, or Apple initiated it). | "Your subscription payment was refunded. Your account has been moved to the free tier." |
+
+Tracking these separately also helps with analytics -- a spike in REVOKEs
+indicates Family Sharing churn, while a spike in REFUNDs may indicate a
+product satisfaction issue.
+
+---
+
+## 6. Deployment Checklist
+
+All items must be completed before the iOS purchase flow will work end-to-end.
+
+### Backend (already done)
+- [x] `APPLE_APP_ID` added to `config.py`
+- [x] `app_store_original_transaction_id` column added to `users` table
+- [x] Partial UNIQUE index on `app_store_original_transaction_id` created
+- [x] `POST /api/verify-ios-purchase` route implemented
+- [x] `POST /apple-webhook` route implemented
+
+### Backend (still needed)
+- [ ] Set `APPLE_BUNDLE_ID` env var (e.g., `com.mindmerge.app`)
+- [ ] Set `APPLE_APP_ID` env var (integer from App Store Connect)
+- [ ] Set `APPLE_KEY_ID` env var (from App Store Connect > Keys)
+- [ ] Set `APPLE_ISSUER_ID` env var (from App Store Connect > Keys)
+- [ ] Set `APPLE_PRIVATE_KEY` env var (see Section 4c for Cloud Run / local setup)
+- [ ] Set `APPLE_ENVIRONMENT` to `Production` when going live (currently defaults to `Sandbox`)
+- [ ] Download Apple root certs into `certs/` directory (see Section 4b)
+
+### App Store Connect
+- [ ] Create auto-renewable subscription product (product ID, pricing, subscription group)
+- [ ] Set Server Notification URL: App Store Connect > App > General > App Information > App Store Server Notifications URL to `https://your-domain.com/apple-webhook`
+
+### iOS App
+- [ ] Check backend tier via `GET /api/usage-status` before showing purchase UI (Section 3)
+- [ ] Validate `productId` before sending transaction to backend (Section 2)
+- [ ] Handle client-side notification types (Section 1)
+- [ ] Display REVOKE vs REFUND differently (Section 5)
+
+---
+
+## Quick Reference: Backend Endpoints for iOS
+
+| Endpoint | Method | Auth | Purpose |
+|---|---|---|---|
+| `/api/verify-ios-purchase` | POST | Bearer token | Send signed StoreKit transaction for server-side verification and tier upgrade |
+| `/apple-webhook` | POST | Apple-signed (no user auth) | App Store Server Notifications v2 webhook |
+| `/api/usage-status` | GET | Bearer token | Check current subscription tier, token usage, and limits |
