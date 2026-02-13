@@ -11,6 +11,8 @@ class AppState: ObservableObject {
     @Published var hasCompletedOnboarding = false
     @Published var isCheckingOnboardingStatus = false
 
+    let subscriptionViewModel = SubscriptionViewModel()
+
     private var authStateHandle: AuthStateDidChangeListenerHandle?
     
     var idToken: String? {
@@ -34,6 +36,10 @@ class AppState: ObservableObject {
                 self?.currentUser = user
                 self?.isAuthenticated = user != nil
                 self?.userEmail = user?.email
+                // Load subscription status when user signs in
+                if user != nil {
+                    await self?.subscriptionViewModel.loadStatus()
+                }
             }
         }
     }

@@ -28,6 +28,9 @@ struct SettingsView: View {
                             .foregroundColor(Theme.textSecondary)
                     }
 
+                    // Subscription section
+                    SubscriptionSettingsSection(viewModel: appState.subscriptionViewModel)
+
                     // Categories section
                     Section {
                         NavigationLink("Manage Categories", destination: CategoryManagementView())

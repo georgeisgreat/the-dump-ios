@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showFilePicker = false
     @State private var showTextNote = false
+    @State private var showPaywall = false
     @State private var capturedImage: UIImage?
     
 // a view is a type of struct that is called out as a view, and it must provide a body variable that contains the layout
@@ -45,6 +46,12 @@ struct ContentView: View {
                    .padding(.top, Theme.spacingSM)
                    .padding(.bottom, Theme.spacingMD)
                     // Status bar
+                    if appState.subscriptionViewModel.isBlocked {
+                        BlockedBanner(onUpgradeTap: { showPaywall = true })
+                    } else if appState.subscriptionViewModel.usagePercentage >= 80 {
+                        UsageWarningBanner(percentage: appState.subscriptionViewModel.usagePercentage)
+                    }
+
                     if !sessionStore.lastUploadStatus.isEmpty {
                         StatusBanner(text: sessionStore.lastUploadStatus)
                     }
@@ -57,10 +64,10 @@ struct ContentView: View {
                         VStack(spacing: Theme.spacingLG) {
                             // Capture buttons
                             CaptureButtonsSection(
-                                onPhotoTap: { showCamera = true },
-                                onVoiceTap: { showVoiceMemo = true },
-                                onFileTap: { showFilePicker = true },
-                                onTextTap: { showTextNote = true }
+                                onPhotoTap: { guardCapture { showCamera = true } },
+                                onVoiceTap: { guardCapture { showVoiceMemo = true } },
+                                onFileTap: { guardCapture { showFilePicker = true } },
+                                onTextTap: { guardCapture { showTextNote = true } }
                             )
                             .padding(.top, Theme.spacingLG)
                             
@@ -111,6 +118,9 @@ struct ContentView: View {
                 .environmentObject(appState)
                 .environmentObject(sessionStore)
         }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView(viewModel: appState.subscriptionViewModel)
+        }
         .onChange(of: capturedImage) { _, newImage in
             if let image = newImage {
                 handleCapturedPhoto(image)
@@ -119,6 +129,14 @@ struct ContentView: View {
         }
         .environmentObject(sessionStore)
     }
+    }
+
+    private func guardCapture(_ action: () -> Void) {
+        if appState.subscriptionViewModel.isBlocked {
+            showPaywall = true
+        } else {
+            action()
+        }
     }
     
     private func handleCapturedPhoto(_ image: UIImage) {
@@ -410,6 +428,45 @@ struct SessionItemRow: View {
             Image(systemName: "clock")
                 .foregroundColor(Theme.textSecondary)
         }
+    }
+}
+
+struct BlockedBanner: View {
+    let onUpgradeTap: () -> Void
+
+    var body: some View {
+        HStack {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(Theme.accent)
+            Text("You've reached your usage limit.")
+                .font(.system(size: Theme.fontSizeSM))
+                .foregroundColor(Theme.textPrimary)
+            Spacer()
+            Button("Upgrade") { onUpgradeTap() }
+                .font(.system(size: Theme.fontSizeSM, weight: .semibold))
+                .foregroundColor(Theme.accent)
+        }
+        .padding(.vertical, Theme.spacingSM)
+        .padding(.horizontal, Theme.spacingMD)
+        .background(Theme.accent.opacity(0.1))
+    }
+}
+
+struct UsageWarningBanner: View {
+    let percentage: Double
+
+    var body: some View {
+        HStack {
+            Image(systemName: "chart.bar.fill")
+                .foregroundColor(.orange)
+            Text("\(Int(percentage))% of your monthly limit used")
+                .font(.system(size: Theme.fontSizeSM))
+                .foregroundColor(Theme.textPrimary)
+        }
+        .padding(.vertical, Theme.spacingSM)
+        .padding(.horizontal, Theme.spacingMD)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.1))
     }
 }
 
