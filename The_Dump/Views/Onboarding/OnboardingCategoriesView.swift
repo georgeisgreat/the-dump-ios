@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct OnboardingCategoriesView: View {
     @ObservedObject var viewModel: OnboardingViewModel

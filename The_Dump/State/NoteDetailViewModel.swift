@@ -92,16 +92,18 @@ final class NoteDetailViewModel: ObservableObject {
 
     /// Whether this note has an original file that can be previewed.
     var hasOriginalAsset: Bool {
-        guard let mimeType = note?.mime_type?.lowercased() else { return false }
-        return !mimeType.isEmpty && !mimeType.hasPrefix("text")
+        guard let mt = note?.mime_type?.lowercased(), !mt.isEmpty else { return false }
+        // Hide for plain text / typed notes
+        if mt.hasPrefix("text") || mt == "typed" { return false }
+        return true
     }
 
     /// SF Symbol name for the original asset button based on mime type.
     var assetIconName: String {
         let mt = note?.mime_type?.lowercased() ?? ""
-        if mt.hasPrefix("image") || ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif"].contains(mt) {
+        if mt.hasPrefix("image") || mt.hasPrefix("photo") || ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif"].contains(mt) {
             return "photo.on.rectangle"
-        } else if mt.hasPrefix("audio") || ["mp3", "m4a", "wav", "aac", "ogg"].contains(mt) {
+        } else if mt.hasPrefix("audio") || mt.hasPrefix("voice") || ["mp3", "m4a", "wav", "aac", "ogg"].contains(mt) {
             return "waveform"
         } else {
             return "doc"

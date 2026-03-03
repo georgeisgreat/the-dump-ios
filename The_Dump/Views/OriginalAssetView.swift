@@ -95,13 +95,9 @@ struct OriginalAssetView: View {
                 .font(.system(size: 48))
                 .foregroundColor(Theme.textSecondary)
 
-            Text(asset.filename)
+            Text("Original")
                 .font(.system(size: Theme.fontSizeMD))
                 .foregroundColor(Theme.textPrimary)
-
-            Text(asset.content_type)
-                .font(.system(size: Theme.fontSizeSM))
-                .foregroundColor(Theme.textSecondary)
 
             if let url = URL(string: asset.signed_url) {
                 Link("Open in Browser", destination: url)

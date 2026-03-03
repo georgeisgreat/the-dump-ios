@@ -226,12 +226,12 @@ struct VoiceMemoView: View {
             sessionStore.addItem(item)
             
             do {
-                let response = try await UploadService.shared.uploadAudio(
+                _ = try await UploadService.shared.uploadAudio(
                     fileURL: fileURL,
                     userEmail: email,
                     idToken: idToken
                 )
-                sessionStore.markProcessing(id: item.id, fileUuid: response.uuid)
+                sessionStore.markCaptured(id: item.id)
                 
                 // Clean up local file after successful upload
                 try? FileManager.default.removeItem(at: fileURL)
