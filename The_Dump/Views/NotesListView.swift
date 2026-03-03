@@ -309,12 +309,12 @@ private struct NoteListRowView: View {
     }
 
     private func mediaTypeEmoji() -> String {
-        if let mime = note.mime_type?.lowercased() {
-            if mime.hasPrefix("audio/") { return "🎙️" }
-            if mime.hasPrefix("image/") { return "🖼️" }
-            if mime.hasPrefix("video/") { return "🎬" }
-        }
-        return "📝"
+        guard let mime = note.mime_type?.lowercased() else { return "✏️" }
+        if mime.hasPrefix("image") { return "📷" }
+        if mime.hasPrefix("audio") || mime.hasPrefix("voice") { return "🎤" }
+        if mime.hasPrefix("text") { return "✏️" }
+        if mime.hasPrefix("document") || mime.hasPrefix("application") { return "📤" }
+        return "✏️"
     }
 
     private func derivedSnippet() -> String {

@@ -7,6 +7,9 @@ final class NoteDetailViewModel: ObservableObject {
     @Published private(set) var isLoading: Bool = false
     @Published private(set) var isSaving: Bool = false
     @Published private(set) var errorMessage: String?
+    @Published private(set) var isLoadingAsset: Bool = false
+    @Published private(set) var assetResponse: NoteAssetResponse? = nil
+    @Published var assetErrorMessage: String? = nil
     
     private let noteID: String
     
@@ -85,5 +88,44 @@ final class NoteDetailViewModel: ObservableObject {
             isSaving = false
             return false
         }
+    }
+
+    /// Whether this note has an original file that can be previewed.
+    /// Only show for image and audio/voice notes.
+    var hasOriginalAsset: Bool {
+        let mt = note?.mime_type?.lowercased() ?? ""
+        let nt = note?.note_type?.lowercased() ?? ""
+        if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return true }
+        if mt.hasPrefix("audio") || mt.hasPrefix("voice") || nt == "voice" { return true }
+        return false
+    }
+
+    /// SF Symbol name for the original asset button based on mime type and note type.
+    var assetIconName: String {
+        let mt = note?.mime_type?.lowercased() ?? ""
+        let nt = note?.note_type?.lowercased() ?? ""
+        if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return "photo.on.rectangle" }
+        return "waveform"
+    }
+
+    /// Fetch the original asset signed URL on demand.
+    func fetchOriginalAsset() async {
+        guard !isLoadingAsset else { return }
+        isLoadingAsset = true
+        assetErrorMessage = nil
+        assetResponse = nil
+
+        do {
+            let response = try await NotesService.shared.fetchNoteAsset(noteId: noteID)
+            if let response {
+                assetResponse = response
+            } else {
+                assetErrorMessage = "No original file available for this note."
+            }
+        } catch {
+            assetErrorMessage = error.localizedDescription
+        }
+
+        isLoadingAsset = false
     }
 }

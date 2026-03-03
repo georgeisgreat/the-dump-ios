@@ -10,22 +10,22 @@ enum SessionItemKind: String, Codable {
 enum UploadStatus: Equatable {
     case pending
     case uploading
-    case success(storagePath: String)
+    case captured
     case failed(error: String)
-    
+
     var displayText: String {
         switch self {
         case .pending:
             return "Pending…"
         case .uploading:
             return "Uploading…"
-        case .success(let path):
-            return "Uploaded to \(path)"
+        case .captured:
+            return "Captured!"
         case .failed(let error):
             return "Failed: \(error)"
         }
     }
-    
+
     var isRetryable: Bool {
         if case .failed = self { return true }
         return false
@@ -39,8 +39,8 @@ struct SessionItem: Identifiable {
     let originalFilename: String
     var localFileURL: URL?
     var status: UploadStatus
-    var thumbnailData: Data? // For photos
-    
+    var thumbnailData: Data?
+
     init(
         id: String = UUID().uuidString,
         createdAt: Date = Date(),

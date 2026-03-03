@@ -75,9 +75,10 @@ struct ContentView: View {
                             )
                             .padding(.top, Theme.spacingLG)
                             
-                            // Session history
-                            SessionHistorySection(items: sessionStore.items)
-                            
+                            ForEach(sessionStore.items) { item in
+                                SessionItemRow(item: item)
+                            }
+
                             Spacer(minLength: Theme.spacingXL)
                         }
                         .padding(.horizontal, Theme.screenH)
@@ -170,12 +171,12 @@ struct ContentView: View {
             sessionStore.addItem(item)
             
             do {
-                let response = try await UploadService.shared.uploadPhoto(
+                _ = try await UploadService.shared.uploadPhoto(
                     image: image,
                     userEmail: email,
                     idToken: idToken
                 )
-                sessionStore.markSuccess(id: item.id, storagePath: response.storagePath)
+                sessionStore.markCaptured(id: item.id)
             } catch {
                 sessionStore.markFailed(id: item.id, error: error.localizedDescription)
             }
@@ -201,12 +202,12 @@ struct ContentView: View {
             sessionStore.addItem(item)
 
             do {
-                let response = try await UploadService.shared.uploadFile(
+                _ = try await UploadService.shared.uploadFile(
                     fileURL: url,
                     userEmail: email,
                     idToken: idToken
                 )
-                sessionStore.markSuccess(id: item.id, storagePath: response.storagePath)
+                sessionStore.markCaptured(id: item.id)
             } catch {
                 sessionStore.markFailed(id: item.id, error: error.localizedDescription)
             }
@@ -291,98 +292,72 @@ struct CaptureButton: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, Theme.spacingLG)
+            .padding(.vertical, Theme.spacingXL)
             .background(Theme.surface)
             .cornerRadius(Theme.cornerRadiusCapture)
         }
     }
 }
 
-struct SessionHistorySection: View {
-    let items: [SessionItem]
-    
-    var body: some View {
-        VStack(spacing: Theme.spacingMD) {
-            Text("Your Uploads This Session")
-                .sectionLabel()
-                .foregroundColor(Theme.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            
-            if items.isEmpty {
-                VStack(spacing: Theme.spacingSM) {
-                    Image(systemName: "tray")
-                        .font(.system(size: 24))
-                        .foregroundColor(Theme.textSecondary.opacity(0.5))
-                    
-                    Text("Nothing yet this session")
-                        .font(.system(size: Theme.fontSizeSM))
-                        .foregroundColor(Theme.textSecondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, Theme.spacingXL)
-                .background(
-                    RoundedRectangle(cornerRadius: Theme.cornerRadius)
-                        .strokeBorder(Theme.surface, style: StrokeStyle(lineWidth: 1, dash: [6]))
-                )
-            } else {
-                LazyVStack(spacing: Theme.spacingSM) {
-                    ForEach(items) { item in
-                        SessionItemRow(item: item)
-                    }
-                }
-            }
-        }
-    }
-}
-
 struct SessionItemRow: View {
     let item: SessionItem
-    
+
     var body: some View {
-        HStack(spacing: Theme.spacingMD) {
-            // Thumbnail or icon
-            Group {
-                if let thumbnailData = item.thumbnailData,
-                   let uiImage = UIImage(data: thumbnailData) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
+        VStack(spacing: 0) {
+            HStack(spacing: Theme.spacingMD) {
+                // Thumbnail or icon
+                Group {
+                    if let thumbnailData = item.thumbnailData,
+                       let uiImage = UIImage(data: thumbnailData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 44, height: 44)
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadiusSM))
+                    } else {
+                        ZStack {
+                            Theme.surface2
+                            Image(systemName: iconForKind)
+                                .foregroundColor(Theme.textSecondary)
+                        }
                         .frame(width: 44, height: 44)
                         .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadiusSM))
-                } else {
-                    ZStack {
-                        Theme.surface2
-                        Image(systemName: iconForKind)
-                            .foregroundColor(Theme.textSecondary)
                     }
-                    .frame(width: 44, height: 44)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadiusSM))
                 }
+
+                // Info
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(labelForKind)
+                        .font(.system(size: Theme.fontSizeMD, weight: .medium))
+                        .foregroundColor(Theme.textPrimary)
+                        .lineLimit(1)
+
+                    Text(statusText)
+                        .font(.system(size: Theme.fontSizeXS))
+                        .foregroundColor(statusColor)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                // Status indicator
+                statusIcon
             }
 
-            // Info
-            VStack(alignment: .leading, spacing: 2) {
-                Text(labelForKind)
-                    .font(.system(size: Theme.fontSizeMD, weight: .medium))
-                    .foregroundColor(Theme.textPrimary)
-                    .lineLimit(1)
-                
-                Text(statusText)
-                    .font(.system(size: Theme.fontSizeXS))
-                    .foregroundColor(statusColor)
-                    .lineLimit(1)
+            // Hint text for captured items
+            if case .captured = item.status {
+                Text("It'll show up in your notes in a few minutes.")
+                    .font(.system(size: 11))
+                    .foregroundColor(Theme.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 6)
             }
-            
-            Spacer()
-            
-            // Status indicator
-            statusIcon
         }
         .padding(Theme.spacingMD)
         .background(Theme.surface)
         .cornerRadius(Theme.cornerRadius)
     }
-    
+
     private var iconForKind: String {
         switch item.kind {
         case .photo: return "photo"
@@ -407,16 +382,16 @@ struct SessionItemRow: View {
             return "Pending"
         case .uploading:
             return "Uploading…"
-        case .success:
-            return "Uploaded"
+        case .captured:
+            return "Captured!"
         case .failed(let error):
             return error
         }
     }
-    
+
     private var statusColor: Color {
         switch item.status {
-        case .success:
+        case .captured:
             return Theme.success
         case .failed:
             return Theme.accent
@@ -424,13 +399,13 @@ struct SessionItemRow: View {
             return Theme.textSecondary
         }
     }
-    
+
     @ViewBuilder
     private var statusIcon: some View {
         switch item.status {
         case .uploading:
             PulsingDot()
-        case .success:
+        case .captured:
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(Theme.success)
         case .failed:

@@ -103,11 +103,11 @@ struct TextNoteView: View {
             sessionStore.addItem(item)
 
             do {
-                let response = try await UploadService.shared.uploadTextNote(
+                _ = try await UploadService.shared.uploadTextNote(
                     content: noteContent,
                     idToken: idToken
                 )
-                sessionStore.markSuccess(id: item.id, storagePath: response.storagePath)
+                sessionStore.markCaptured(id: item.id)
                 dismiss()
             } catch {
                 sessionStore.markFailed(id: item.id, error: error.localizedDescription)

@@ -35,7 +35,7 @@ struct BrowseView: View {
                                 NavigationLink {
                                     NotesListView(title: "Recent", filter: .recent(limit: 10))
                                 } label: {
-                                    BrowseFolderRowView(icon: "🕐", title: "Recent", count: 10)
+                                    BrowseFolderRowView(icon: "🕐", title: "Recent", count: viewModel.recentCount)
                                 }
                                 .listRowBackground(Theme.surface)
                             } header: {
@@ -79,7 +79,7 @@ struct BrowseView: View {
                                     NavigationLink {
                                         BrowseFolderDestinationView(kind: .mimeType, name: row.name, count: row.count)
                                     } label: {
-                                        BrowseFolderRowView(icon: "📎", title: row.name, count: row.count)
+                                        BrowseFolderRowView(icon: emojiForMimeType(row.name), title: row.name, count: row.count)
                                     }
                                     .listRowBackground(Theme.surface)
                                 }
@@ -128,6 +128,15 @@ struct BrowseView: View {
                     .environmentObject(sessionStore)
             }
         }
+    }
+
+    private func emojiForMimeType(_ name: String) -> String {
+        let lower = name.lowercased()
+        if lower.hasPrefix("image") { return "📷" }
+        if lower.hasPrefix("audio") || lower.hasPrefix("voice") { return "🎤" }
+        if lower.hasPrefix("text") { return "✏️" }
+        if lower.hasPrefix("document") || lower.hasPrefix("application") { return "📤" }
+        return "📎"
     }
 }
 
