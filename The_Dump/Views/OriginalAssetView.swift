@@ -16,7 +16,7 @@ struct OriginalAssetView: View {
                         imageViewer
                     } else if isAudio {
                         if let audioURL = URL(string: asset.signed_url) {
-                            AudioAssetPlayerView(url: audioURL, filename: asset.filename)
+                            AudioAssetPlayerView(url: audioURL)
                         } else {
                             VStack(spacing: Theme.spacingMD) {
                                 Image(systemName: "exclamationmark.triangle")
@@ -112,7 +112,6 @@ struct OriginalAssetView: View {
 
 private struct AudioAssetPlayerView: View {
     let url: URL
-    let filename: String
 
     @State private var player: AVPlayer?
     @State private var isPlaying = false
@@ -124,10 +123,6 @@ private struct AudioAssetPlayerView: View {
             Image(systemName: "waveform")
                 .font(.system(size: 64))
                 .foregroundColor(Theme.accent)
-
-            Text(filename)
-                .font(.system(size: Theme.fontSizeMD, weight: .semibold))
-                .foregroundColor(Theme.textPrimary)
 
             Button(action: togglePlayback) {
                 Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")

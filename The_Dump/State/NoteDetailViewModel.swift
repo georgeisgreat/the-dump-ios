@@ -91,23 +91,21 @@ final class NoteDetailViewModel: ObservableObject {
     }
 
     /// Whether this note has an original file that can be previewed.
+    /// Only show for image and audio/voice notes.
     var hasOriginalAsset: Bool {
-        guard let mt = note?.mime_type?.lowercased(), !mt.isEmpty else { return false }
-        // Hide for plain text / typed notes
-        if mt.hasPrefix("text") || mt == "typed" { return false }
-        return true
+        let mt = note?.mime_type?.lowercased() ?? ""
+        let nt = note?.note_type?.lowercased() ?? ""
+        if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return true }
+        if mt.hasPrefix("audio") || mt.hasPrefix("voice") || nt == "voice" { return true }
+        return false
     }
 
-    /// SF Symbol name for the original asset button based on mime type.
+    /// SF Symbol name for the original asset button based on mime type and note type.
     var assetIconName: String {
         let mt = note?.mime_type?.lowercased() ?? ""
-        if mt.hasPrefix("image") || mt.hasPrefix("photo") || ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif"].contains(mt) {
-            return "photo.on.rectangle"
-        } else if mt.hasPrefix("audio") || mt.hasPrefix("voice") || ["mp3", "m4a", "wav", "aac", "ogg"].contains(mt) {
-            return "waveform"
-        } else {
-            return "doc"
-        }
+        let nt = note?.note_type?.lowercased() ?? ""
+        if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return "photo.on.rectangle" }
+        return "waveform"
     }
 
     /// Fetch the original asset signed URL on demand.
