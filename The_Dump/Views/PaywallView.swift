@@ -4,6 +4,9 @@ import Combine
 struct PaywallView: View {
     @ObservedObject var viewModel: SubscriptionViewModel
     @Environment(\.dismiss) private var dismiss
+    /// Only auto-dismiss after the user's own purchase succeeds, not from
+    /// background tier changes (e.g. sandbox transaction listener updating tier).
+    @State private var purchasedInSession = false
 
     var body: some View {
         NavigationStack {
@@ -41,7 +44,7 @@ struct PaywallView: View {
             .toolbarBackground(Theme.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .onChange(of: viewModel.tier) { _, newTier in
-                if newTier == .paid {
+                if newTier == .paid && purchasedInSession {
                     dismiss()
                 }
             }
@@ -155,7 +158,10 @@ struct PaywallView: View {
     private var actionButtons: some View {
         VStack(spacing: Theme.spacingMD) {
             Button {
-                Task { await viewModel.purchase() }
+                Task {
+                    purchasedInSession = true
+                    await viewModel.purchase()
+                }
             } label: {
                 Group {
                     if viewModel.isPurchasing {

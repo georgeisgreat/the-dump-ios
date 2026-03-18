@@ -84,7 +84,7 @@ struct SubscriptionSettingsSection: View {
                 }
 
                 // Trial end date
-                if let trialEnd = viewModel.formattedTrialEnd {
+                if viewModel.tier == .trial, let trialEnd = viewModel.formattedTrialEnd {
                     HStack {
                         Text("Trial ends")
                             .foregroundColor(Theme.textSecondary)
@@ -120,8 +120,9 @@ struct SubscriptionSettingsSection: View {
                 }
             }
 
-            // Upgrade button (free/trial only)
-            if viewModel.canUpgrade {
+            // Upgrade button (free/trial only, hidden while loading to avoid
+            // briefly showing upgrade option before real tier is known)
+            if viewModel.canUpgrade && !viewModel.isLoading {
                 Button("Upgrade to Pro") {
                     showPaywall = true
                 }
