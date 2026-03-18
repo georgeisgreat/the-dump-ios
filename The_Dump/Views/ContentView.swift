@@ -47,8 +47,8 @@ struct ContentView: View {
                    .padding(.horizontal, Theme.spacingMD)
                    .padding(.top, Theme.spacingSM)
                    .padding(.bottom, Theme.spacingMD)
-                    // Status bar
-                    if appState.subscriptionViewModel.isBlocked {
+                    // Status bar (hidden while loading to avoid flash before real tier is known)
+                    if appState.subscriptionViewModel.isBlocked && !appState.subscriptionViewModel.isLoading {
                         BlockedBanner(
                             reason: appState.subscriptionViewModel.usageStatus?.blockedReason,
                             onUpgradeTap: { showPaywall = true }
