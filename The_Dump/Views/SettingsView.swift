@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var showLogoutConfirmation = false
     @State private var showDeleteConfirmation = false
     @State private var showDeletePasswordSheet = false
+    @State private var showPaywall = false
     @AppStorage("appearance") private var appearance: AppAppearance = .system
 
     var body: some View {
@@ -46,7 +47,7 @@ struct SettingsView: View {
                     }
 
                     // Subscription section
-                    SubscriptionSettingsSection(viewModel: appState.subscriptionViewModel)
+                    SubscriptionSettingsSection(viewModel: appState.subscriptionViewModel, showPaywall: $showPaywall)
 
                     // Categories section
                     Section {
@@ -175,6 +176,9 @@ struct SettingsView: View {
             DeleteAccountSheet()
                 .environmentObject(appState)
                 .environmentObject(sessionStore)
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView(viewModel: appState.subscriptionViewModel)
         }
     }
     

@@ -3,7 +3,7 @@ import Combine
 
 struct SubscriptionSettingsSection: View {
     @ObservedObject var viewModel: SubscriptionViewModel
-    @State private var showPaywall = false
+    @Binding var showPaywall: Bool
 
     var body: some View {
         Section {
@@ -155,9 +155,6 @@ struct SubscriptionSettingsSection: View {
         } header: {
             Text("Subscription")
                 .foregroundColor(Theme.textSecondary)
-        }
-        .sheet(isPresented: $showPaywall) {
-            PaywallView(viewModel: viewModel)
         }
     }
 
